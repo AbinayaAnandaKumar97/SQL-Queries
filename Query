@@ -1,5 +1,4 @@
---Check if temptables already exist and if yes, then drop 
-
+-- Check if temp tables already exist and drop them if they do
 IF OBJECT_ID('tempdb..#temppayments') IS NOT NULL DROP TABLE #temppayments;
 IF OBJECT_ID('tempdb..#temppayments_RATES') IS NOT NULL DROP TABLE #temppayments_RATES;
 IF OBJECT_ID('tempdb..#tempfinal') IS NOT NULL DROP TABLE #tempfinal;
@@ -21,96 +20,80 @@ SELECT
         ELSE NULL
     END AS Month
 INTO #temppayments
-FROM
-    dbo.Payments
+FROM dbo.Payments;
 
---SELECT * FROM #temppayments --validation query
-
--- Selecting required data from Rates,#temppayments into #temppayments_RATES
-    
-SELECT CAST(p.Amount AS DECIMAL(18,4)) * CAST(REPLACE (r.Rate, ',', '.') AS DECIMAL(18,4) ) AS Paid_ConvertedRate, 
-[First Name],[Last Name], opportunity_id,opprtunity_status,month  
+-- Selecting required data from Rates and #temppayments into #temppayments_RATES
+SELECT 
+    CAST(p.Amount AS DECIMAL(18,4)) * CAST(REPLACE(r.Rate, ',', '.') AS DECIMAL(18,4)) AS Paid_ConvertedRate, 
+    [First Name], [Last Name], opportunity_id, opportunity_status, month  
 INTO #temppayments_RATES
 FROM dbo.Rates r, #temppayments p 
-WHERE p.Currency = r.Currency     
+WHERE p.Currency = r.Currency;
 
---SELECT * FROM #temppayments_RATES --validation query
-
--- Pivoting required data from #temppayments_RATES into #tempfinal
---This pivot operation transforms the rows in #temppayments_RATES into columns representing each month (from 01 to 12)
-
+-- Pivoting the data from #temppayments_RATES into #tempfinal
 SELECT * INTO #tempfinal
 FROM
-( SELECT [First Name],[Last Name], opportunity_id,opprtunity_status, month,Paid_ConvertedRate
-FROM  #temppayments_RATES) AS Sourcetable
+( 
+    SELECT [First Name], [Last Name], opportunity_id, opportunity_status, month, Paid_ConvertedRate
+    FROM  #temppayments_RATES
+) AS Sourcetable
 PIVOT
- ( 
+( 
    MAX(Paid_ConvertedRate)
-   FOR Month IN ([01],[02],[03],[04],[05],[06],[07],[08],[09],[10],[11],[12])
-   --([1],
- ) AS PIVOT_temppAYMENTS
- 
---SELECT * FROM #tempfinal --validation query
-   
--- Selecting required data from CRMOpportunity,Ratesinto #tempCRMOpportunity
- 
+   FOR Month IN ([01], [02], [03], [04], [05], [06], [07], [08], [09], [10], [11], [12])
+) AS PIVOT_temppAYMENTS;
+
+-- Selecting required data from CRMOpportunity and Rates into #tempCRMOpportunity
 SELECT 
-opportunity_id,
-opportunity_status,
-opportunity_currency_code,
-opportunity_closedate,
-CASE 
-                WHEN Subsidiary = 'OY' THEN 'Finland'
-                WHEN Subsidiary = 'AU' THEN 'Australia'
-                WHEN Subsidiary = 'SWE'THEN 'Sweden'
-                WHEN Subsidiary = 'UK' THEN 'London'
-                ELSE 'Unknown'
-            END
-AS Location,
- CAST(REPLACE(opportunity_month_1_payment,',','.') AS DECIMAL(18,4)) * CAST(REPLACE (r.Rate, ',', '.') AS DECIMAL(18,4) ) AS '01',
- CAST(REPLACE(opportunity_month_2_payment,',','.') AS DECIMAL(18,4)) * CAST(REPLACE (r.Rate, ',', '.') AS DECIMAL(18,4) ) AS '02',
- CAST(REPLACE(opportunity_month_3_payment,',','.') AS DECIMAL(18,4)) * CAST(REPLACE (r.Rate, ',', '.') AS DECIMAL(18,4) ) AS '03',
- CAST(REPLACE(opportunity_month_4_payment,',','.') AS DECIMAL(18,4)) * CAST(REPLACE (r.Rate, ',', '.') AS DECIMAL(18,4) ) As '04', 
- CAST(REPLACE(Opportunity_month_5_payment,',','.') AS DECIMAL(18,4))* CAST(REPLACE (r.Rate, ',', '.') AS DECIMAL(18,4) ) As '05',
- CAST(REPLACE(opportunity_month_6_payment,',','.') AS DECIMAL(18,4)) * CAST(REPLACE (r.Rate, ',', '.') AS DECIMAL(18,4) ) As '06',
- CAST(REPLACE(opportunity_month_7_payment,',','.') AS DECIMAL(18,4)) * CAST(REPLACE (r.Rate, ',', '.') AS DECIMAL(18,4) ) AS '07',
- CAST(REPLACE(opportunity_month_8_payment,',','.') AS DECIMAL(18,4)) * CAST(REPLACE (r.Rate, ',', '.') AS DECIMAL(18,4) ) AS '08',
- CAST(REPLACE(opportunity_month_9_payment,',','.') AS DECIMAL(18,4)) * CAST(REPLACE (r.Rate, ',', '.') AS DECIMAL(18,4) ) AS '09', 
- CAST(REPLACE(opportunity_month_10_payment,',','.') AS DECIMAL(18,4)) * CAST(REPLACE (r.Rate, ',', '.') AS DECIMAL(18,4) ) AS '10', 
- CAST(REPLACE(opportunity_month_11_payment,',','.') AS DECIMAL(18,4))* CAST(REPLACE (r.Rate, ',', '.') AS DECIMAL(18,4) ) As '11', 
- CAST(REPLACE(opportunity_month_12_payment,',','.') AS DECIMAL(18,4)) * CAST(REPLACE (r.Rate, ',', '.') AS DECIMAL(18,4) ) AS '12'
- INTO #tempCRMOpportunity
-    FROM dbo.CRMOpportunity, dbo.Rates r
-    WHERE Opportunity_Currency_Code = r.Currency 
-	
---SELECT COUNT(*) FROM CRMOpportunity --validation query
---SELECT * FROM #tempCRMOpportunity --validation query
-    
---Final query joining #tempfinal and #tempCRMOpportunity to generate the report
-    
+    opportunity_id,
+    opportunity_status,
+    opportunity_currency_code,
+    opportunity_closedate,
+    CASE 
+        WHEN Subsidiary = 'Subsidiary 1' THEN 'Location 1'
+        WHEN Subsidiary = 'Subsidiary 2' THEN 'Location 2'
+        ELSE 'Unknown'
+    END AS Location,
+    CAST(REPLACE(opportunity_month_1_payment, ',', '.') AS DECIMAL(18,4)) * CAST(REPLACE(r.Rate, ',', '.') AS DECIMAL(18,4)) AS '01',
+    CAST(REPLACE(opportunity_month_2_payment, ',', '.') AS DECIMAL(18,4)) * CAST(REPLACE(r.Rate, ',', '.') AS DECIMAL(18,4)) AS '02',
+    CAST(REPLACE(opportunity_month_3_payment, ',', '.') AS DECIMAL(18,4)) * CAST(REPLACE(r.Rate, ',', '.') AS DECIMAL(18,4)) AS '03',
+    CAST(REPLACE(opportunity_month_4_payment, ',', '.') AS DECIMAL(18,4)) * CAST(REPLACE(r.Rate, ',', '.') AS DECIMAL(18,4)) AS '04', 
+    CAST(REPLACE(Opportunity_month_5_payment, ',', '.') AS DECIMAL(18,4)) * CAST(REPLACE(r.Rate, ',', '.') AS DECIMAL(18,4)) AS '05',
+    CAST(REPLACE(opportunity_month_6_payment, ',', '.') AS DECIMAL(18,4)) * CAST(REPLACE(r.Rate, ',', '.') AS DECIMAL(18,4)) AS '06',
+    CAST(REPLACE(opportunity_month_7_payment, ',', '.') AS DECIMAL(18,4)) * CAST(REPLACE(r.Rate, ',', '.') AS DECIMAL(18,4)) AS '07',
+    CAST(REPLACE(opportunity_month_8_payment, ',', '.') AS DECIMAL(18,4)) * CAST(REPLACE(r.Rate, ',', '.') AS DECIMAL(18,4)) AS '08',
+    CAST(REPLACE(opportunity_month_9_payment, ',', '.') AS DECIMAL(18,4)) * CAST(REPLACE(r.Rate, ',', '.') AS DECIMAL(18,4)) AS '09', 
+    CAST(REPLACE(opportunity_month_10_payment, ',', '.') AS DECIMAL(18,4)) * CAST(REPLACE(r.Rate, ',', '.') AS DECIMAL(18,4)) AS '10', 
+    CAST(REPLACE(opportunity_month_11_payment, ',', '.') AS DECIMAL(18,4)) * CAST(REPLACE(r.Rate, ',', '.') AS DECIMAL(18,4)) AS '11', 
+    CAST(REPLACE(opportunity_month_12_payment, ',', '.') AS DECIMAL(18,4)) * CAST(REPLACE(r.Rate, ',', '.') AS DECIMAL(18,4)) AS '12'
+INTO #tempCRMOpportunity
+FROM dbo.CRMOpportunity, dbo.Rates r
+WHERE Opportunity_Currency_Code = r.Currency;
+
+-- Final query joining #tempfinal and #tempCRMOpportunity to generate the report
 SELECT 
-p.[First Name],
-p.[Last Name], 
-c.opportunity_id,
-opportunity_status,
-opportunity_closedate,
-Location,
-c.[01] AS Jan,c.[02] AS Feb,c.[03] AS Mar,c.[04] AS April,c.[05] AS May,c.[06] AS June,c.[07] AS July,c.[08] AS Aug,c.[09] AS Sep,
-c.[10] AS Oct,c.[11] AS Nov,c.[12] AS Dec
+    p.[First Name],
+    p.[Last Name], 
+    c.opportunity_id,
+    opportunity_status,
+    opportunity_closedate,
+    Location,
+    c.[01] AS Jan, c.[02] AS Feb, c.[03] AS Mar, c.[04] AS April, c.[05] AS May, c.[06] AS June,
+    c.[07] AS July, c.[08] AS Aug, c.[09] AS Sep, c.[10] AS Oct, c.[11] AS Nov, c.[12] AS Dec
 FROM #tempCRMOpportunity C
-LEFT JOIN #tempfinal p on c.opportunity_id = p.opportunity_id
-where opportunity_status in ( 'signed','pending')
+LEFT JOIN #tempfinal p ON c.opportunity_id = p.opportunity_id
+WHERE opportunity_status IN ('signed', 'pending')
 
-union ALL
+UNION ALL
 
 SELECT 
-[First Name],
-[Last Name], 
-p.opportunity_id,
-opprtunity_status AS opportunity_status,
-c.opportunity_closedate,
-c.Location,
-p.[01],p.[02],p.[03],p.[04],p.[05],p.[06],p.[07],p.[08],p.[09],p.[10],p.[11],p.[12]
+    [First Name],
+    [Last Name], 
+    p.opportunity_id,
+    opportunity_status AS opportunity_status,
+    c.opportunity_closedate,
+    c.Location,
+    p.[01], p.[02], p.[03], p.[04], p.[05], p.[06], p.[07], p.[08], p.[09], p.[10], p.[11], p.[12]
 FROM #tempCRMOpportunity c
-left join #tempfinal p on c.opportunity_id = p.opportunity_id
-WHERE p.opprtunity_status = 'paid'
+LEFT JOIN #tempfinal p ON c.opportunity_id = p.opportunity_id
+WHERE p.opportunity_status = 'paid';
